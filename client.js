@@ -35,6 +35,7 @@ class RpcClient {
                 this.receiveBuffer += data.toString("utf8");
                 // TODO: 
                 // バッファからメッセージを取り出す処理
+                this._processBuffer();
             });
 
             this.socket.on("end", () => {
@@ -52,6 +53,92 @@ class RpcClient {
                 // エラー後の処理
             });
         });
+    }
+
+    disconnect() {
+        if (this.socket && this.isConnected) {
+            console.log("Disconnecting from server...");
+            this.socket.end();
+        } else {
+            console.log("Not connected.");
+            // TODO:
+            // 初期化する処理
+        }
+    }
+
+    _cleanup() {
+        if (this.socket) {
+            this.socket = null;
+        }
+        this.receiveBuffer = "";
+        // TODO:
+        // 保留中のリクエストを全て削除する処理
+    }
+
+    _rejectAllPending(err) {
+        // TODO:
+        // 関数の処理を書く
+        const pendingCount = this.pendingRequests.size;
+        if (pendingCount > 0) {
+            console.warn(`Rejecting all ${pendingCount} pending request due to connection issue.`);
+            for (const [, {reject}] of this.pendingRequests) {
+                reject(err);
+            }
+            this.pendingRequests.clear();
+        }
+    }
+
+    // 一意のリクエストIDを生成する
+    _generateRequestId() {
+        return this.nextRequestId++;
+    }
+
+    _callRpcMethod(method, params) {
+        console.log(`_callRpcMethod called for method: ${method}`);
+
+        return new Pronmise((resolve, reject) => {
+            const requestId = this._generateRequestId();
+            console.log(`Dummy request ID: ${requestId}`);
+
+            setTimeout(() => {
+                console.log(`Simulating response for ID: ${requestId}`);
+                const dummyResponse = {
+                    result: `Dummy result for ${method}`,
+                    id: requestId,
+                };
+                if (dummyResponse.id !== undefined) {
+                    console.log(`Dummy reject for ID* ${requestId}`);
+                    reject(new Error(dummyResponse.message));
+                    // reject(dummyResponse.error); でも文法的に間違いではないが、デバッグのしやすさという観点からオブジェクトを返すようにしている。
+                } else {
+                    console.log(`Dummy resolve for ID* ${requestId}`);
+                    resolve(dummyResponse.result);
+                }
+            }, 100);
+        });
+    }
+
+    _processBuffer() {
+        let newlineIndex;
+        while ((newlineIndex = this.receiveBuffer.indexOf("\n")) !== -1) {
+            const message = this.receiveBuffer.slice(0, newlineIndex);
+            this.receiveBuffer = this.receiveBuffer.slice(newlineIndex + 1);
+            if (message) {
+                console.log(`Complete message received: `, message);
+                // TODO:
+                // 現段階ではJSON文字列ではない。あとで修正。
+                this._handleResponse(message);
+            }
+        }
+    }
+
+    _handleResponse(jsonString) {
+        try {
+            const response = JSON.parse(jsonString);
+            console.log(`Parsed response: `, response);
+        } catch (err) {
+            console.error("Error parsing JSON: ", err);
+        }
     }
 }
 
