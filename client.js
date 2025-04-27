@@ -48,7 +48,7 @@ class RpcClient {
                 console.error("Socket error: ", err.message);
                 this.isConnected = false;
                 reject(err);
-                if (this.socket && this.socket.connectiong) {
+                if (this.socket && this.socket.connecting) {
                     console.log("Error during connection atempt.");
                     reject(err);
                 } else {
@@ -128,9 +128,10 @@ class RpcClient {
                         if (pending) {
                             this.pendingRequests.delete(requestId);
                             pending.reject(new Error(`failed to send message: ${err.message}`));
-                        } else {
-                            console.log(`sent request ${requestId}: ${jsonString}`);
-                        }
+                        } 
+                    }
+                    else {
+                        console.log(`sent request ${requestId}: ${jsonString}`);
                     }
                 });
             } catch (err) {
@@ -138,7 +139,7 @@ class RpcClient {
                 const pending = this.pendingRequests.get(requestId);
                 if (pending) {
                     this.pendingRequests.delete(requestId);
-                    pending.reject(new Error(err));
+                    pending.reject(err);
                 }
             }
 
@@ -194,7 +195,7 @@ class RpcClient {
             } else {
                 if (responseObject.result === undefined) {
                     console.warn(`Received response for request ${requestId} with no result:`, responseObject);
-                    pending.resolve(undefinec);
+                    pending.resolve(undefined);
                 } else {
                     console.log((`RPC Success response for request ${requestId}.`));
                     pending.resolve(responseObject.result);
