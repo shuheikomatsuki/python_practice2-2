@@ -21,14 +21,12 @@ class Methods:
         if not isinstance(x, (int, float)):
             raise TypeError("x must be an integer or a float.")
         if x < 0:
-            return -(abs(x) ** (1/n))
-        if x < 0:
             # 負の数のn乗根 (nが奇数の場合のみ実数解を持つ)
             # 複素数解は扱わないため、単純な計算で負の数を返す
             # 例: n=3, x=-8 -> (-8)^(1/3) = -2
-             if n % 2 == 0:
+            if n % 2 == 0:
                  raise ValueError("Cannot compute even root of a negative number.")
-             return -((-x) ** (1/n))
+            return -((-x) ** (1/n))
         else:
             return x ** (1/n)
     
@@ -39,7 +37,7 @@ class Methods:
         return s[::-1]
     
     @staticmethod
-    def valieAnagram(str1: str, str2: str) -> bool:
+    def validAnagram(str1: str, str2: str) -> bool:
         if not isinstance(str1, str) or not isinstance(str2, str):
             raise TypeError("Both inputs must be strings.")
         return sorted(str1) == sorted(str2)
@@ -56,7 +54,7 @@ RPC_METHODS: Dict[str, Tuple[Callable, List[type]]] = {
     "floor": (Methods.floor, [float]),
     "nroot": (Methods.nroot, [int, int]),
     "reverse": (Methods.reverse, [str]),
-    "validAnagram": (Methods.valieAnagram, [str, str]),
+    "validAnagram": (Methods.validAnagram, [str, str]),
     "sort": (Methods.sort, [List[str]]),
 }
 
@@ -212,6 +210,6 @@ def main():
             print(f"Removed socket file: {server_address}")
         except OSError:
             pass
-        
+
 if __name__ == "__main__":
     main()
