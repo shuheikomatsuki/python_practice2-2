@@ -93,29 +93,56 @@ class RpcClient {
     _generateRequestId() {
         return this.nextRequestId++;
     }
+    /**
+     * 
+     * @param {string} method 
+     * @param {Array<any>} params 
+     * @returns {Promise<any>}
+     */
 
     _callRpcMethod(method, params) {
         console.log(`_callRpcMethod called for method: ${method}`);
 
+        if (!this.isConnected || !this.socket) {
+            return Promise.reject(new Error("Not connected to server. Call connect() first."));
+        }
+
         return new Promise((resolve, reject) => {
             const requestId = this._generateRequestId();
-            console.log(`Dummy request ID: ${requestId}`);
 
-            setTimeout(() => {
-                console.log(`Simulating response for ID: ${requestId}`);
-                const dummyResponse = {
-                    result: `Dummy result for ${method}`,
-                    id: requestId,
-                };
-                if (dummyResponse.id === undefined) {
-                    console.log(`Dummy reject for ID: ${requestId}`);
-                    reject(new Error(dummyResponse.message));
-                    // reject(dummyResponse.error); でも文法的に間違いではないが、デバッグのしやすさという観点からオブジェクトを返すようにしている。
-                } else {
-                    console.log(`Dummy resolve for ID: ${requestId}`);
-                    resolve(dummyResponse.result);
+            const request = {
+                method: method,
+                params: params,
+                id: requestId,
+            };
+            const jsonString = JSON.stringify(request);
+            const message = jsonString + "\n";
+
+            this.pendingRequests.set(requestId, { resolve, reject });
+
+            try {
+                this.socket.write(message, "utf8", (err) => {
+                    if (err) {
+                        console.error("`Failed to write to socket for request ${requestId}:", err);
+                        const pending = this.pendingRequests.get(requestId);
+                        if (pending) {
+                            this.pendingRequests.delete(requestId);
+                            pending.reject(new Error(`failed to send message: ${err.message}`));
+                        } else {
+                            console.log(`sent request ${requestId}: ${jsonString}`);
+                        }
+                    }
+                });
+            } catch (err) {
+                console.error(`exception during socket write for request ${requestId}:`, err);
+                const pending = this.pendingRequests.get(requestId);
+                if (pending) {
+                    this.pendingRequests.delete(requestId);
+                    pending.reject(new Error(err));
                 }
-            }, 100);
+            }
+
+            // TODO: タイムアウト処理はどこに追加するか
         });
     }
 
@@ -132,11 +159,48 @@ class RpcClient {
             }
         }
     }
-
+    /**
+     * 
+     * @param {string} jsonString 
+     */
     _handleResponse(jsonString) {
+        let responseObject;
         try {
-            const response = JSON.parse(jsonString);
-            console.log(`Parsed response: `, response);
+            responseObject = JSON.parse(jsonString);
+            console.log(`Parsed response: `, responseObject);
+
+            // IDがない場合
+            const requestId = responseObject.id;
+            if (requestId === undefined) {
+                console.error("Received response with no ID: ", responseObject);
+                return;
+                // TODO: エラーハンドリングをどうするか決める。
+            }
+
+            // IDがある場合、対応するリクエストをMapから取得する
+            const pending = this.pendingRequests.get(requestId);
+            if (!pending) {
+                console.warn(`Received response for unknown request ID: ${requestId}`, responseObject);
+                return;
+            }
+            
+            // 対応するリクエストが見つかったので、Mapから削除する
+            this.pendingRequests.delete(requestId);
+
+            // レスポンスにエラーが含まれている場合
+            if (responseObject.error !== undefined) {
+                console.error(`RPC Error response for request ${requestId}:`, responseObject.error);
+                pending.reject(new Error(`RPC Error: ${responseObject.error}`));
+            } else {
+                if (responseObject.result === undefined) {
+                    console.warn(`Received response for request ${requestId} with no result:`, responseObject);
+                    pending.resolve(undefinec);
+                } else {
+                    console.log((`RPC Success response for request ${requestId}.`));
+                    pending.resolve(responseObject.result);
+                }
+            }
+
         } catch (err) {
             console.error("Error parsing JSON: ", err);
         }
