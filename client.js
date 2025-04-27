@@ -118,6 +118,8 @@ class RpcClient {
             const jsonString = JSON.stringify(request);
             const message = jsonString + "\n";
 
+            // TODO: タイムアウト処理
+
             this.pendingRequests.set(requestId, { resolve, reject });
 
             try {
@@ -142,8 +144,6 @@ class RpcClient {
                     pending.reject(err);
                 }
             }
-
-            // TODO: タイムアウト処理はどこに追加するか
         });
     }
 
@@ -154,8 +154,6 @@ class RpcClient {
             this.receiveBuffer = this.receiveBuffer.slice(newlineIndex + 1);
             if (message) {
                 console.log(`Complete message received: `, message);
-                // TODO:
-                // 現段階ではJSON文字列ではない。あとで修正。
                 this._handleResponse(message);
             }
         }
@@ -175,7 +173,6 @@ class RpcClient {
             if (requestId === undefined) {
                 console.error("Received response with no ID: ", responseObject);
                 return;
-                // TODO: エラーハンドリングをどうするか決める。
             }
 
             // IDがある場合、対応するリクエストをMapから取得する
