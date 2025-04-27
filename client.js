@@ -25,7 +25,7 @@ class RpcClient {
             console.log(`Attempting to connect to ${this.socketPath}...`);
             this.socket = net.createConnection({ path: this.socketPath });
 
-            this.socket.on("connet", () => {
+            this.socket.on("connect", () => {
                 console.log("Connected to server.");
                 this.isConnected = true;
                 resolve(); // 接続成功
@@ -41,16 +41,21 @@ class RpcClient {
             this.socket.on("end", () => {
                 console.log("Server disconnected.");
                 this.isConnected = false;
-                // TODO*
-                // 終了後の初期化の処理
+                this._cleanup();
             });
 
             this.socket.on("error", (err) => {
                 console.error("Socket error: ", err.message);
                 this.isConnected = false;
                 reject(err);
-                // TODO:
-                // エラー後の処理
+                if (this.socket && this.socket.connectiong) {
+                    console.log("Error during connection atempt.");
+                    reject(err);
+                } else {
+                    console.log("Error after connection.");
+                    this._rejectAllPending(err);
+                }
+                this._cleanup();
             });
         });
     }
@@ -61,8 +66,7 @@ class RpcClient {
             this.socket.end();
         } else {
             console.log("Not connected.");
-            // TODO:
-            // 初期化する処理
+            this._cleanup();
         }
     }
 
@@ -71,13 +75,10 @@ class RpcClient {
             this.socket = null;
         }
         this.receiveBuffer = "";
-        // TODO:
-        // 保留中のリクエストを全て削除する処理
+        this._rejectAllPending(new Error("Connection closed unexpectedly."));
     }
 
     _rejectAllPending(err) {
-        // TODO:
-        // 関数の処理を書く
         const pendingCount = this.pendingRequests.size;
         if (pendingCount > 0) {
             console.warn(`Rejecting all ${pendingCount} pending request due to connection issue.`);
@@ -96,7 +97,7 @@ class RpcClient {
     _callRpcMethod(method, params) {
         console.log(`_callRpcMethod called for method: ${method}`);
 
-        return new Pronmise((resolve, reject) => {
+        return new Promise((resolve, reject) => {
             const requestId = this._generateRequestId();
             console.log(`Dummy request ID: ${requestId}`);
 
@@ -106,12 +107,12 @@ class RpcClient {
                     result: `Dummy result for ${method}`,
                     id: requestId,
                 };
-                if (dummyResponse.id !== undefined) {
-                    console.log(`Dummy reject for ID* ${requestId}`);
+                if (dummyResponse.id === undefined) {
+                    console.log(`Dummy reject for ID: ${requestId}`);
                     reject(new Error(dummyResponse.message));
                     // reject(dummyResponse.error); でも文法的に間違いではないが、デバッグのしやすさという観点からオブジェクトを返すようにしている。
                 } else {
-                    console.log(`Dummy resolve for ID* ${requestId}`);
+                    console.log(`Dummy resolve for ID: ${requestId}`);
                     resolve(dummyResponse.result);
                 }
             }, 100);
@@ -140,48 +141,59 @@ class RpcClient {
             console.error("Error parsing JSON: ", err);
         }
     }
-}
 
-function connectToServer(socketPath) {
-    return new Promise((resolve, reject) => {
-        console.log(`Attempting to connect to ${socketPath}...`);
-        const socket = net.createConnection({ path: socketPath });
+    async floor(x) {
+        console.log(`Calling floor(${x})`);
+        return this._callRpcMethod("floor", [x]);
+    }
 
-        socket.on("connect", () => {
-            console.log("Connected to server.");
-            resolve(socket);
-        });
+    async nroot(n, x) {
+        console.log(`Calling nroot(${n}, ${x})`);
+        return this._callRpcMethod("nroot", [n, x]);
+    }
 
-        socket.on("data", (data) => {
-            console.log(`Received data chunk: ${data.toString('utf8')}`);
-        });
+    async reverse(s) {
+        console.log(`Calling reverse(${s})`);
+        return this._callRpcMethod("reverse", [s]);
+    }
 
-        socket.on("close", () => {
-            console.log("Connection closed.");
-        });
+    async validAnagram(str1, str2) {
+        console.log(`Calling validAnagram(${str1}, ${str2})`);
+        return this._callRpcMethod("validAnagram", [str1, str2]);
+    }
 
-        socket.on("error", (err) => {
-            console.error("Socket error: ", err.message);
-            if (socket.connecting) {
-                reject(err);
-            }
-        })
-    });
+    async sort(strArr) {
+        console.log(`Calling sort(${strArr})`);
+        return this._callRpcMethod("sort", [strArr]);
+    }
 }
 
 async function main() {
-    let clientSocket = null;
+    const client = new RpcClient(SOCKET_PATH);
     try {
-        clientSocket = await connectToServer(SOCKET_PATH);
-        console.log("Client connected and ready.");
+        await client.connect();
+        console.log("RPC client connected.");
+
+        const floorResult = await client.floor(10.99);
+        console.log(`floor result: ${floorResult}`);
+
+        const nrootResult = await client.nroot(3, 27);
+        console.log(`nroot result: ${nrootResult}`);
+
+        const reverseResult = await client.reverse("hello");
+        console.log(`reverse result: ${reverseResult}`);
+
+        const validAnagramResult = await client.validAnagram("listen", "silent");
+        console.log(`validAnagram result: ${validAnagramResult}`);
+
+        const sortResult = await client.sort(["banana", "apple", "cherry"]);
+        console.log(`sort result: ${sortResult}`);
+
     } catch (err) {
-        console.error("Failed to connect:", err.message);
+        console.error(`An error occurred: `, err);
     } finally {
-        if (clientSocket && !clientSocket.destroyed) {
-            console.log("Closing the socket.");
-            clientSocket.end();
-        }
-        console.log("Main function finished.");
+        client.disconnect();
+        console.log("\nClient finished.");
     }
 }
 
